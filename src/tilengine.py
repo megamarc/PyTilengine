@@ -581,7 +581,7 @@ class Window(object):
 		self.cb_sdl_func = None
 
 	@classmethod
-	def create(cls, overlay=None, flags=WindowFlags.VSYNC):
+	def create(cls, title='Tilengine window', overlay=None, flags=WindowFlags.VSYNC):
 		"""
 		Static method that creates a single-threaded window that must be used in conjunction with
 		:meth:`Window.process` in a loop
@@ -591,6 +591,10 @@ class Window(object):
 		:return: instance of the created window
 		"""
 		global _window
+
+		"""Added the ability to choose the window title ~AleK3y"""
+		_tln.TLN_SetWindowTitle(_encode_string(str(title)))
+
 		if _window is not None:
 			return _window
 		ok = _tln.TLN_CreateWindow(_encode_string(overlay), flags)
