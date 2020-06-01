@@ -1,11 +1,11 @@
 """
 Python wrapper for Tilengine retro graphics engine
-Updated to library version 1.21.0
+Partially ipdated to library version 2.8.x
 http://www.tilengine.org
 """
 
 """
-Copyright (c) 2018 Marc Palacios Domènech
+Copyright (c) 2018 Marc Palacios Domenech
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -82,6 +82,14 @@ class Error:
 	WRONG_FORMAT = 15  # Resource file has invalid format
 	WRONG_SIZE = 16	 # A width or height parameter is invalid
 	UNSUPPORTED = 17  # Unsupported function
+	REF_LIST = 18 # Invalid ObjectList reference
+
+
+class LogLevel:
+	"""
+	Log levels for :meth:`Engine.set_log_level()`
+	"""
+	NONE, ERRORS, VERBOSE = range(3)
 
 
 class Blend:
@@ -96,9 +104,9 @@ class Input:
 	"""
 	Available inputs to query in :meth:`Window.get_input`
 	"""
-	NONE, UP, DOWN, LEFT, RIGHT, A, B, C, D, E,	F, START = range(12)
+	NONE, UP, DOWN, LEFT, RIGHT, A, B, C, D, E,	F, START, QUIT, CRT = range(14)
 	BUTTON1, BUTTON2, BUTTON3, BUTTON4, BUTTON5, BUTTON6 = range(A, START)
-	P1, P2, P3, P4 = range(0, 64, 16)
+	P1, P2, P3, P4 = range(0, 128, 32)
 
 
 PLAYER1, PLAYER2, PLAYER3, PLAYER4 = range(4)
@@ -246,6 +254,53 @@ class PixelMap(Structure):
 	]
 
 
+class ObjectInfo(Structure):
+	"""
+	Object item info returned by :meth:`ObjectInfo.get_info()`
+	"""
+	_fields_ = [
+		("id", c_ushort),
+		("gid", c_ushort),
+		("flags", c_ushort),
+		("x", c_int),
+		("y", c_int),
+		("width", c_int),
+		("height", c_int),
+		("type", c_ubyte),
+		("visible", c_bool),
+		("name", c_char * 64)		
+	]
+
+
+class TileImage(Structure):
+	"""
+	Image Tile items for TLN_CreateImageTileset()
+	"""
+	_fields_ = [
+		("bitmap", c_void_p),
+		("id", c_ushort),
+		("type", c_ubyte)
+	]
+
+
+class SpriteState(Structure):
+	"""
+	Sprite state for :meth:`Sprite.get_state()`
+	"""
+	_fields_ = [
+		("x", c_int),
+		("y", c_int),
+		("w", c_int),
+		("h", c_int),
+		("flags", c_ushort),
+		("palette", c_void_p),
+		("spriteset", c_void_p),
+		("index", c_int),
+		("enabled", c_bool),
+		("collision", c_bool)
+	]
+
+
 class Color(object):
 	"""
 	Represents a color value in RGB format
@@ -265,7 +320,6 @@ class Color(object):
 
 # module internal variables
 _tln = None			# handle to shared native library
-_engine = None		# singleton engine
 _window = None		# singleton window
 
 # load native library
@@ -310,7 +364,12 @@ def _raise_exception(result=False):
 
 # basic management ------------------------------------------------------------
 _tln.TLN_Init.argtypes = [c_int, c_int, c_int, c_int, c_int]
-_tln.TLN_Init.restype = c_bool
+_tln.TLN_Init.restype = c_void_p
+_tln.TLN_DeleteContext.argtypes = [c_void_p]
+_tln.TLN_DeleteContext.restype = c_bool
+_tln.TLN_SetContext.argtypes = [c_void_p]
+_tln.TLN_SetContext.restype = c_bool
+_tln.TLN_GetContext.restype = c_void_p
 _tln.TLN_GetNumObjects.restype = c_int
 _tln.TLN_GetVersion.restype = c_int
 _tln.TLN_GetUsedMemory.restype = c_int
@@ -326,7 +385,9 @@ _tln.TLN_UpdateFrame.argtypes = [c_int]
 _tln.TLN_BeginFrame.argtypes = [c_int]
 _tln.TLN_DrawNextScanline.restype = c_bool
 _tln.TLN_SetLoadPath.argtypes = [c_char_p]
-
+_tln.TLN_SetLogLevel.argtypes = [c_int]
+_tln.TLN_OpenResourcePack.argtypes = [c_char_p, c_char_p]
+_tln.TLN_OpenResourcePack.restype = c_bool
 
 class Engine(object):
 	"""
@@ -337,12 +398,14 @@ class Engine(object):
 	:ivar animations: tuple of Animation objects, one entry per animation
 	:ivar version: library version number
 	"""
-	def __init__(self, num_layers, num_sprites, num_animations):
+	def __init__(self, handle, num_layers, num_sprites, num_animations):
+		self._as_parameter_ = handle
 		self.layers = tuple([Layer(n) for n in range(num_layers)])
 		self.sprites = tuple([Sprite(n) for n in range(num_sprites)])
 		self.animations = tuple([Animation(n) for n in range(num_animations)])
 		self.version = _tln.TLN_GetVersion()
 		self.cb_raster_func = None
+		self.cb_frame_func = None
 		self.cb_blend_func = None
 		self.library = _tln
 
@@ -362,25 +425,20 @@ class Engine(object):
 
 		:param width: horizontal resolution in pixels
 		:param height: vertical resolution in pixels
-		:param num_layers: number of background layers
-		:param num_sprites: number of sprites
-		:param num_animations: number of animations
+		:param num_layers: max number of background layers
+		:param num_sprites: max number of sprites
+		:param num_animations: number of color-cycle animations
 		:return: new instance
 		"""
-		global _engine
-		if _engine is not None:
-			return _engine
-		ok = _tln.TLN_Init(width, height, num_layers, num_sprites, num_animations)
-		if ok is True:
-			_engine = Engine(num_layers, num_sprites, num_animations)
+		handle = _tln.TLN_Init(width, height, num_layers, num_sprites, num_animations)
+		if handle is not None:
+			_engine = Engine(handle, num_layers, num_sprites, num_animations)
 			return _engine
 		else:
-			_raise_exception(ok)
+			_raise_exception()
 
 	def __del__(self):
-		self.library.TLN_Deinit()
-		global _engine
-		_engine = None
+		_tln.TLN_DeleteContext(self)
 
 	def get_num_objects(self):
 		"""
@@ -487,7 +545,7 @@ class Engine(object):
 		"""
 		Draws the frame to the previously specified render target
 
-		:param num_frame: optional timestamp value (frame number) for animation control
+		:param num_frame: optional frame number for animation control
 		"""
 		_tln.TLN_UpdateFrame(num_frame)
 
@@ -496,7 +554,7 @@ class Engine(object):
 		Starts active rendering of the current frame, istead of the callback-based :meth:`Engine.update_frame`.
 		Used in conjunction with :meth:`Engine.draw_next_scanline`
 
-		:param num_frame: optional timestamp value (frame number) for animation control
+		:param num_frame: optional frame number for animation control
 		"""
 		_tln.TLN_BeginFrame(num_frame)
 
@@ -536,6 +594,12 @@ class Engine(object):
 		self.cb_blend_func = _blend_function(blend_function)
 		_tln.TLN_SetCustomBlendFunction(self.cb_blend_func)
 
+	def set_log_level(self, log_level):
+		"""
+		Sets output messages
+		"""
+		_tln.TLN_SetLogLevel(log_level)
+
 	def get_available_sprite(self):
 		"""
 		:return: Index of the first unused sprite (starting from 0) or -1 if none found
@@ -549,6 +613,20 @@ class Engine(object):
 		"""
 		index = _tln.TLN_GetAvailableAnimation()
 		return index
+
+	def open_resource_pack(self, filename, key):
+		"""
+		Opens the resource package with optional aes-128 key and binds it
+		:param filename: file with the resource package (.dat extension)
+		:param key: optional null-terminated ASCII string with aes decryption key
+		"""
+		return _tln.TLN_OpenResourcePack(filename, key=None)
+
+	def close_resource_pack(self):
+		"""
+		Closes currently opened resource package and unbinds it 
+		"""
+		return _tln.TLN_CloseResourcePack()
 
 
 # window management -----------------------------------------------------------
@@ -569,13 +647,16 @@ _tln.TLN_EnableCRTEffect.argtypes = [c_int, c_ubyte, c_ubyte, c_ubyte, c_ubyte, 
 _tln.TLN_GetTicks.restype = c_int
 _tln.TLN_Delay.argtypes = [c_int]
 _tln.TLN_BeginWindowFrame.argtypes = [c_int]
-
+_tln.TLN_GetWindowWidth.restype = c_int
+_tln.TLN_GetWindowHeight.restype = c_int
 
 class Window(object):
 	"""
 	Built-in window manager for easy setup and testing
 
 	:ivar num_frame: current frame being drawn, starting from 0
+	:ivar width: actual window width (after scaling)
+	:ivar height: actual window height (after scaling)
 	"""
 	def __init__(self):
 		self.cb_sdl_func = None
@@ -601,6 +682,8 @@ class Window(object):
 		if ok is True:
 			_window = Window()
 			_window.num_frame = 0
+			_window.width = _tln.TLN_GetWindowWidth()
+			_window.height = _tln.TLN_GetWindowHeight()
 			return _window
 		else:
 			_raise_exception(ok)
@@ -620,6 +703,8 @@ class Window(object):
 		ok = _tln.TLN_CreateWindowThread(_encode_string(overlay), flags)
 		if ok is True:
 			_window = Window()
+			_window.width = _tln.TLN_GetWindowWidth()
+			_window.height = _tln.TLN_GetWindowHeight()
 			return _window
 		else:
 			_raise_exception(ok)
@@ -758,7 +843,7 @@ class Window(object):
 		"""
 		Begins active rendering frame to the window, used in tandem with :meth:`Engine.draw_next_scanline` and :meth:`Window.end_frame`
 
-		:param num_frame: optional timestamp value (frame number) for animation control
+		:param num_frame: optional frame number for animation control
 		"""
 		_tln.TLN_BeginWindowFrame(num_frame)
 
@@ -876,12 +961,12 @@ _tln.TLN_CloneTileset.argtypes = [c_void_p]
 _tln.TLN_CloneTileset.restype = c_void_p
 _tln.TLN_SetTilesetPixels.argtypes = [c_void_p, c_int, POINTER(c_byte), c_int]
 _tln.TLN_SetTilesetPixels.restype = c_bool
-_tln.TLN_CopyTile.argtypes = [c_void_p, c_int, c_int]
-_tln.TLN_CopyTile.restype = c_bool
 _tln.TLN_GetTileWidth.argtypes = [c_void_p]
 _tln.TLN_GetTileWidth.restype = c_int
 _tln.TLN_GetTileHeight.argtypes = [c_void_p]
 _tln.TLN_GetTileHeight.restype = c_int
+_tln.TLN_GetTilesetNumTiles.argtypes = [c_void_p] 
+_tln.TLN_GetTilesetNumTiles.restype = c_int
 _tln.TLN_GetTilesetPalette.argtypes = [c_void_p]
 _tln.TLN_GetTilesetPalette.restype = c_void_p
 _tln.TLN_GetTilesetSequencePack.argtypes = [c_void_p]
@@ -898,6 +983,7 @@ class Tileset(object):
 
 	:ivar tile_width: width of each tile
 	:ivar tile_height: height of each tile
+	:ivar num_tiles: number of unique tiles
 	:ivar palette: original palette attached inside the resource file
 	:ivar sequence_pack: optional SequencePack embedded inside the Tileset for tileset animation
 	"""
@@ -907,6 +993,7 @@ class Tileset(object):
 		self.library = _tln
 		self.tile_width = _tln.TLN_GetTileWidth(handle)
 		self.tile_height = _tln.TLN_GetTileHeight(handle)
+		self.num_tiles = _tln.TLN_GetTilesetNumTiles(handle)
 		self.palette = Palette(_tln.TLN_GetTilesetPalette(handle), False)
 		self.sequence_pack = SequencePack(_tln.TLN_GetTilesetSequencePack(handle), False)
 
@@ -964,16 +1051,6 @@ class Tileset(object):
 		:param pitch: Number of bytes per line in source data
 		"""
 		ok = _tln.TLN_SetTilesetPixels(self, entry, data, pitch)
-		_raise_exception(ok)
-
-	def copy_tile(self, source, target):
-		"""
-		Copies tile graphic data inside a Tileset
-
-		:param source: index of source tile
-		:param target: index of target tile
-		"""
-		ok = _tln.TLN_CopyTile(self, source, target)
 		_raise_exception(ok)
 
 	def __del__(self):
@@ -1088,9 +1165,15 @@ class Tilemap(object):
 
 		:param row: Vertical position of the tile (0 <= row < rows)
 		:param col: Horizontal position of the tile (0 <= col < cols)
-		:param tile_info: pointer to user-provided :class:`Tile` object
+		:param tile_info: pointer to user-provided :class:`Tile` object, or None to erase
 		"""
-		ok = _tln.TLN_SetTilemapTile(self, row, col, tile_info)
+		if tile_info is not None:
+			ok = _tln.TLN_SetTilemapTile(self, row, col, tile_info)
+		else:
+			tile_info = Tile()
+			tile_info.index = 0
+			ok = _tln.TLN_SetTilemapTile(self, row, col, tile_info)
+			del tile_info
 		_raise_exception(ok)
 
 	def copy_tiles(self, src_row, src_col, num_rows, num_cols, dst_tilemap, dst_row, dst_col):
@@ -1349,12 +1432,19 @@ class Bitmap(object):
 			ok = self.library.TLN_DeleteBitmap(self)
 			_raise_exception(ok)
 
+class ObjectList(object):
+	"""
+	ObjectList reference
+	"""
+
 
 # sequences management --------------------------------------------------------
 _tln.TLN_CreateSequence.argtypes = [c_char_p, c_int, c_int, POINTER(SequenceFrame)]
 _tln.TLN_CreateSequence.restype = c_void_p
 _tln.TLN_CreateCycle.argtypes = [c_char_p, c_int, POINTER(ColorStrip)]
 _tln.TLN_CreateCycle.restype = c_void_p
+_tln.TLN_CreateSpriteSequence.argtypes = [c_char_p, c_void_p, c_char_p, c_int]
+_tln.TLN_CreateSpriteSequence.restype = c_void_p
 _tln.TLN_CloneSequence.argtypes = [c_void_p]
 _tln.TLN_CloneSequence.restype = c_void_p
 _tln.TLN_GetSequenceInfo.argtypes = [c_void_p, POINTER(SequenceInfo)]
@@ -1398,6 +1488,22 @@ class Sequence(object):
 		:return: instance of the created object
 		"""
 		handle = _tln.TLN_CreateCycle(_encode_string(name), len(strips), strips)
+		if handle is not None:
+			return Sequence(handle)
+		else:
+			_raise_exception()
+
+	@classmethod
+	def create_sprite_sequence(cls, spriteset, basename, delay):
+		"""
+		Static method that creates a sprite sequence based on names inside a spriteset
+
+		:param spriteset: Reference to the spriteset with frames to animate
+		:param basename: Base of the sprite name for the numbered sequence
+		:param delay: Number of frames to hold each animation frame
+		:return: created Sequence object or None if error
+		"""
+		handle = _tln.TLN_CreateSpriteSequence(None, spriteset, _encode_string(basename), delay)
 		if handle is not None:
 			return Sequence(handle)
 		else:
@@ -1539,6 +1645,13 @@ class SequencePack(object):
 # layer management ------------------------------------------------------------
 _tln.TLN_SetLayer.argtypes = [c_int, c_void_p, c_void_p]
 _tln.TLN_SetLayer.restype = c_bool
+
+_tln.TLN_SetLayerTilemap.argtypes = [c_int, c_void_p]
+_tln.TLN_SetLayerTilemap.restype = c_bool
+_tln.TLN_SetLayerBitmap.argtypes = [c_int, c_void_p]
+_tln.TLN_SetLayerBitmap.restype = c_bool
+_tln.TLN_SetLayerObjects.argtypes = [c_int, c_void_p, c_void_p]
+_tln.TLN_SetLayerObjects.restype = c_bool
 _tln.TLN_SetLayerPalette.argtypes = [c_int, c_void_p]
 _tln.TLN_SetLayerPalette.restype = c_bool
 _tln.TLN_SetLayerPosition.argtypes = [c_int, c_int, c_int]
@@ -1551,8 +1664,6 @@ _tln.TLN_SetLayerPixelMapping.argtypes = [c_int, POINTER(PixelMap)]
 _tln.TLN_SetLayerPixelMapping.restype = c_bool
 _tln.TLN_ResetLayerMode.argtypes = [c_int]
 _tln.TLN_ResetLayerMode.restype = c_bool
-_tln.TLN_SetLayerBitmap.argtypes = [c_int, c_void_p]
-_tln.TLN_SetLayerBitmap.restype = c_bool
 _tln.TLN_SetLayerBlendMode.argtypes = [c_int, c_int, c_ubyte]
 _tln.TLN_SetLayerBlendMode.restype = c_bool
 _tln.TLN_SetLayerColumnOffset.argtypes = [c_int, POINTER(c_int)]
@@ -1576,6 +1687,12 @@ _tln.TLN_GetLayerWidth.restype = c_int
 _tln.TLN_GetLayerHeight.argtypes = [c_int]
 _tln.TLN_GetLayerHeight.restype = c_int
 
+_tln.TLN_SetLayerPriority.argtypes = [c_int, c_bool]
+_tln.TLN_SetLayerPriority.restype = c_bool
+_tln.TLN_SetLayerParent.argtypes = [c_int, c_int]
+_tln.TLN_SetLayerParent.restype = c_bool
+_tln.TLN_DisableLayerParent.argtypes = [c_int]
+_tln.TLN_DisableLayerParent.restype = c_bool
 
 class Layer(object):
 	"""
@@ -1584,7 +1701,9 @@ class Layer(object):
 	:ivar index: layer index, from 0 to num_layers - 1
 	:ivar width: width in pixels of the assigned tilemap
 	:ivar height: height in pixels of the assigned tilemap
-	:ivar tilemap: assigned Tilemap object
+	:ivar tilemap: assigned Tilemap object, for tilemap layers
+	:ivar bitmap: assigned Bitmap object, for bitmap layers
+	:ivar objectlist: assigned ObjectList object, for object list layers
 	"""
 	def __init__(self, index):
 		self.index = index
@@ -1592,6 +1711,8 @@ class Layer(object):
 		self.width = 0
 		self.height = 0
 		self.tilemap = None
+		self.bitmap = None
+		self.objectlist = None
 
 	def setup(self, tilemap, tileset=None):
 		"""
@@ -1605,6 +1726,40 @@ class Layer(object):
 			self.width = _tln.TLN_GetLayerWidth(self)
 			self.height = _tln.TLN_GetLayerHeight(self)
 			self.tilemap = tilemap
+			return ok
+		else:
+			_raise_exception()
+
+	def set_tilemap(self, tilemap):
+		"""
+		Configures a tiled background layer with the specified tilemap
+
+		:param tilemap: Tilemap object with background layout
+		"""
+		ok = _tln.TLN_SetLayerTilemap(self, tilemap)
+		if ok is True:
+			self.width = _tln.TLN_GetLayerWidth(self)
+			self.height = _tln.TLN_GetLayerHeight(self)
+			self.tilemap = tilemap
+			self.bitmap = None
+			self.objectlist = None
+			return ok
+		else:
+			_raise_exception()
+
+	def set_bitmap(self, bitmap):
+		"""
+		Configures a background layer with the specified full bitmap
+
+		:param bitmap: Bitmap object with full bitmap background
+		"""
+		ok = _tln.TLN_SetLayerBitmap(self, bitmap)
+		if ok is True:
+			self.width = _tln.TLN_GetLayerWidth(self)
+			self.height = _tln.TLN_GetLayerHeight(self)
+			self.bitmap = bitmap
+			self.tilemap = None
+			self.objectlist = None
 			return ok
 		else:
 			_raise_exception()
@@ -1649,15 +1804,6 @@ class Layer(object):
 		:param sy: vertical scaling factor
 		"""
 		ok = _tln.TLN_SetLayerTransform(self, angle, x, y, sx, sy)
-		_raise_exception(ok)
-
-	def set_bitmap(self, bitmap):
-		"""
-		Configures a background layer with the specified full bitmap instead of a tiled background
-
-		:param bitmap: bitmap to assign
-		"""
-		ok = _tln.TLN_SetLayerBitmap(self, bitmap)
 		_raise_exception(ok)
 
 	def set_pixel_mapping(self, pixel_map):
@@ -1760,6 +1906,25 @@ class Layer(object):
 		ok = _tln.TLN_GetLayerTile(self, x, y, tile_info)
 		_raise_exception(ok)
 
+	def set_priority(self, enable):
+		"""
+		Sets full layer priority, appearing in front of regular sprites
+
+		:param enable: True for enable, False for disable
+		"""
+		return _tln.TLN_SetLayerPriority(self, enable)
+
+	def set_parent(self, parent):
+		"""
+		Sets parent layer to scroll in sync
+
+		:param parent: Layer object to set as parent for this layer, or None to disable parent
+		"""
+		if parent is not None:
+			return _tln.TLN_SetLayerParent(self, parent)
+		else:
+			return _tln.TLN_DisableLayerParent(self)
+
 
 # sprite management -----------------------------------------------------------
 _tln.TLN_ConfigSprite.argtypes = [c_int, c_void_p, c_ushort]
@@ -1791,6 +1956,12 @@ _tln.TLN_DisableSprite.argtypes = [c_int]
 _tln.TLN_DisableSprite.restype = c_bool
 _tln.TLN_GetSpritePalette.argtypes = [c_int]
 _tln.TLN_GetSpritePalette.restype = c_void_p
+_tln.TLN_SetSpriteAnimation.argtypes = [c_int, c_void_p, c_int]
+_tln.TLN_SetSpriteAnimation.restype = c_bool
+_tln.TLN_GetAnimationState.argtypes = [c_int]
+_tln.TLN_GetAnimationState.restype = c_bool
+_tln.TLN_DisableSpriteAnimation.argtypes = [c_int]
+_tln.TLN_DisableSpriteAnimation.restype = c_bool
 
 
 class Sprite(object):
@@ -1944,30 +2115,45 @@ class Sprite(object):
 		else:
 			_raise_exception()
 
+	def set_animation(self, sequence, loop):
+		"""
+		Starts a Sprite animation
 
-# animation engine ------------------------------------------------------------
+		:param sequence: Sequence object to play on the sprite
+		:param loop: number of times to repeat, 0=infinite
+		"""
+		ok = _tln.TLN_SetSpriteAnimation(self, sequence, loop)
+		_raise_exception(ok)
+
+	def get_animation_state(self):
+		"""
+		Gets the state of the animation
+
+		:return: True if still running, False if it has finished
+		"""
+		return _tln.TLN_GetAnimationState(self)
+
+	def disable_animation(self):
+		"""
+		Disables the animation so it doesn't run
+		"""
+		ok = _tln.TLN_DisableSpriteAnimation(self)
+		_raise_exception(ok)
+
+
+# color cycle animation engine ------------------------------------------------------------
 _tln.TLN_SetPaletteAnimation.argtypes = [c_int, c_void_p, c_void_p, c_bool]
 _tln.TLN_SetPaletteAnimation.restype = c_bool
 _tln.TLN_SetPaletteAnimationSource.argtypes = [c_int, c_void_p]
 _tln.TLN_SetPaletteAnimationSource = c_bool
-_tln.TLN_SetTilesetAnimation.argtypes = [c_int, c_int, c_void_p]
-_tln.TLN_SetTilesetAnimation.restype = c_bool
-_tln.TLN_SetTilemapAnimation.argtypes = [c_int, c_int, c_void_p]
-_tln.TLN_SetTilemapAnimation.restype = c_bool
-_tln.TLN_SetSpriteAnimation.argtypes = [c_int, c_int, c_void_p, c_int]
-_tln.TLN_SetSpriteAnimation.restype = c_bool
-_tln.TLN_GetAnimationState.argtypes = [c_int]
-_tln.TLN_GetAnimationState.restype = c_bool
-_tln.TLN_SetAnimationDelay.argtypes = [c_int, c_int]
-_tln.TLN_SetAnimationDelay.restype = c_bool
 _tln.TLN_GetAvailableAnimation.restype = c_int
-_tln.TLN_DisableAnimation.argtypes = [c_int]
-_tln.TLN_DisableAnimation.restype = c_bool
+_tln.TLN_DisablePaletteAnimation.argtypes = [c_int]
+_tln.TLN_DisablePaletteAnimation.restype = c_bool
 
 
 class Animation(object):
 	"""
-	The Animation object manages each animation for the sequencer engine
+	The Animation object manages color-cycle (palette) animations
 
 	:ivar index: animation index, from 0 to num_animations - 1
 	"""
@@ -1996,47 +2182,9 @@ class Animation(object):
 		ok = _tln.TLN_SetPaletteAnimationSource(self, palette)
 		_raise_exception(ok)
 
-	def set_tileset_animation(self, layer, sequence):
-		"""
-		Starts a Tileset animation
-
-		:param layer: Index of layer to animate (0 -> num_layers - 1)
-		:param sequence: Sequence object to play on the layer
-		"""
-		ok = _tln.TLN_SetTilesetAnimation(self, layer, sequence)
-		_raise_exception(ok)
-
-	def set_sprite_animation(self, sprite, sequence, loop):
-		"""
-		Starts a Sprite animation
-
-		:param sprite: Index of sprite to animate (0 -> num_sprites - 1)
-		:param sequence: Sequence object to play on the sprite
-		:param loop: number of times to repeat, 0=infinite
-		"""
-		ok = _tln.TLN_SetSpriteAnimation(self, sprite, sequence, loop)
-		_raise_exception(ok)
-
-	def get_state(self):
-		"""
-		Gets the state of the animation
-
-		:return: True if still running, False if it has finished
-		"""
-		return _tln.TLN_GetAnimationState(self)
-
-	def set_delay(self, delay):
-		"""
-		Sets the playback speed of a given animation
-
-		:param delay: default frame delay to assign
-		"""
-		ok = _tln.TLN_SetAnimationDelay(self, delay)
-		_raise_exception(ok)
-
 	def disable(self):
 		"""
 		Disables the animation so it doesn't run
 		"""
-		ok = _tln.TLN_DisableAnimation(self)
+		ok = _tln.TLN_DisablePaletteAnimation(self)
 		_raise_exception(ok)
