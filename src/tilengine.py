@@ -1,6 +1,6 @@
 """
 Python wrapper for Tilengine retro graphics engine
-Partially ipdated to library version 2.8.x
+Updated to library version 1.21.0 with log_level and input scheme from 2.1.2+
 http://www.tilengine.org
 """
 
@@ -318,6 +318,7 @@ class Color(object):
 		b = int(string[5:7], 16)
 		return Color(r, g, b)
 
+
 # module internal variables
 _tln = None			# handle to shared native library
 _window = None		# singleton window
@@ -388,6 +389,7 @@ _tln.TLN_SetLoadPath.argtypes = [c_char_p]
 _tln.TLN_SetLogLevel.argtypes = [c_int]
 _tln.TLN_OpenResourcePack.argtypes = [c_char_p, c_char_p]
 _tln.TLN_OpenResourcePack.restype = c_bool
+_tln.TLN_SetSpritesMaskRegion.argtypes = [c_int, c_int]
 
 class Engine(object):
 	"""
@@ -620,13 +622,24 @@ class Engine(object):
 		:param filename: file with the resource package (.dat extension)
 		:param key: optional null-terminated ASCII string with aes decryption key
 		"""
-		return _tln.TLN_OpenResourcePack(filename, key=None)
+		ok = _tln.TLN_OpenResourcePack(filename, key=None)
+		_raise_exception(ok)
 
 	def close_resource_pack(self):
 		"""
 		Closes currently opened resource package and unbinds it 
 		"""
 		return _tln.TLN_CloseResourcePack()
+
+	def set_sprites_mask_region(self, top, bottom):
+		"""
+		Defines a sprite masking region between the two scanlines. Sprites masked with Sprite.enable_mask_region() won't be drawn inside this region
+		
+		:param top: upper scaline of the exclusion region
+		:param bottom: lower scanline of the exclusion region
+		"""
+		ok = _tln.TLN_SetSpritesMaskRegion(top, bottom)
+		_raise_exception(ok)
 
 
 # window management -----------------------------------------------------------
@@ -1912,7 +1925,8 @@ class Layer(object):
 
 		:param enable: True for enable, False for disable
 		"""
-		return _tln.TLN_SetLayerPriority(self, enable)
+		ok = _tln.TLN_SetLayerPriority(self, enable)
+		_raise_exception(ok)
 
 	def set_parent(self, parent):
 		"""
@@ -1921,9 +1935,10 @@ class Layer(object):
 		:param parent: Layer object to set as parent for this layer, or None to disable parent
 		"""
 		if parent is not None:
-			return _tln.TLN_SetLayerParent(self, parent)
+			ok = _tln.TLN_SetLayerParent(self, parent)
 		else:
-			return _tln.TLN_DisableLayerParent(self)
+			ok = _tln.TLN_DisableLayerParent(self)
+		_raise_exception(ok)
 
 
 # sprite management -----------------------------------------------------------
@@ -1962,7 +1977,14 @@ _tln.TLN_GetAnimationState.argtypes = [c_int]
 _tln.TLN_GetAnimationState.restype = c_bool
 _tln.TLN_DisableSpriteAnimation.argtypes = [c_int]
 _tln.TLN_DisableSpriteAnimation.restype = c_bool
-
+_tln.TLN_GetSpriteState.argtypes = [c_int, POINTER(SpriteState)]
+_tln.TLN_GetSpriteState.restype = c_bool
+_tln.TLN_SetFirstSprite.argtypes = [c_int]
+_tln.TLN_SetFirstSprite.restype = c_bool
+_tln.TLN_SetNextSprite.argtypes = [c_int, c_int]
+_tln.TLN_SetNextSprite.restype = c_bool
+_tln.TLN_EnableSpriteMasking.argtypes = [c_int, c_bool]
+_tln.TLN_EnableSpriteMasking.restype = c_bool
 
 class Sprite(object):
 	"""
@@ -2139,6 +2161,38 @@ class Sprite(object):
 		"""
 		ok = _tln.TLN_DisableSpriteAnimation(self)
 		_raise_exception(ok)
+
+	def get_state(self, state):
+		"""
+		Returns runtime info about the sprite
+
+		:param state: user-allocated SpriteState structure
+		"""
+		ok = _tln.TLN_GetSpriteState(self, state)
+		_raise_exception(ok)
+
+	def set_first(self):
+		"""
+		Sets this to be the first sprite drawn (beginning of list)
+		"""
+		ok = _tln.TLN_SetFirstSprite(self)
+		_raise_exception(ok)
+
+	def set_next(self, next):
+		"""
+		Sets the next sprite to after this one, builds list
+
+		:param next: sprite to draw after this one
+		"""
+		ok = _tln.TLN_SetNextSprite(self, next)
+		_raise_exception(ok)
+	
+	def enable_masking(self, enable):
+		"""
+		Enables or disables masking for this sprite, if enabled it won't be drawn inside the region set up with Engine.set_sprite_mask_region()
+		"""
+		ok = _tln.TLN_EnableSpriteMasking(self, enable)
+		_raise_exception(ok)	
 
 
 # color cycle animation engine ------------------------------------------------------------
