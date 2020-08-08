@@ -383,8 +383,6 @@ _tln.TLN_SetBGPalette.argtypes = [c_void_p]
 _tln.TLN_SetBGPalette.restype = c_bool
 _tln.TLN_SetRenderTarget.argtypes = [c_void_p, c_int]
 _tln.TLN_UpdateFrame.argtypes = [c_int]
-_tln.TLN_BeginFrame.argtypes = [c_int]
-_tln.TLN_DrawNextScanline.restype = c_bool
 _tln.TLN_SetLoadPath.argtypes = [c_char_p]
 _tln.TLN_SetLogLevel.argtypes = [c_int]
 _tln.TLN_OpenResourcePack.argtypes = [c_char_p, c_char_p]
@@ -551,23 +549,6 @@ class Engine(object):
 		"""
 		_tln.TLN_UpdateFrame(num_frame)
 
-	def begin_frame(self, num_frame=0):
-		"""
-		Starts active rendering of the current frame, istead of the callback-based :meth:`Engine.update_frame`.
-		Used in conjunction with :meth:`Engine.draw_next_scanline`
-
-		:param num_frame: optional frame number for animation control
-		"""
-		_tln.TLN_BeginFrame(num_frame)
-
-	def draw_next_scanline(self):
-		"""
-		Draws the next scanline of the frame started with :meth:`Engine.begin_frame` or :meth:`Window.begin_frame`
-
-		:return: True if there are still lines to be drawn, or False when the frame is camplete.
-		"""
-		return _tln.TLN_DrawNextScanline()
-
 	def set_load_path(self, path):
 		"""
 		Sets base path for all data loading static methods `fromfile`
@@ -659,7 +640,6 @@ _tln.TLN_DrawFrame.argtypes = [c_int]
 _tln.TLN_EnableCRTEffect.argtypes = [c_int, c_ubyte, c_ubyte, c_ubyte, c_ubyte, c_ubyte, c_ubyte, c_bool, c_ubyte]
 _tln.TLN_GetTicks.restype = c_int
 _tln.TLN_Delay.argtypes = [c_int]
-_tln.TLN_BeginWindowFrame.argtypes = [c_int]
 _tln.TLN_GetWindowWidth.restype = c_int
 _tln.TLN_GetWindowHeight.restype = c_int
 
@@ -851,20 +831,6 @@ class Window(object):
 		:param msecs: number of milliseconds to pause
 		"""
 		_tln.TLN_Delay(msecs)
-
-	def begin_frame(self, num_frame):
-		"""
-		Begins active rendering frame to the window, used in tandem with :meth:`Engine.draw_next_scanline` and :meth:`Window.end_frame`
-
-		:param num_frame: optional frame number for animation control
-		"""
-		_tln.TLN_BeginWindowFrame(num_frame)
-
-	def end_frame(self):
-		"""
-		Finishes rendering the current frame and updates the window, used in tandem with :meth:`Window.begin_frame` and :meth:`Engine.draw_next_scanline`
-		"""
-		_tln.TLN_EndWindowFrame()
 
 
 # spritesets management -----------------------------------------------------------
