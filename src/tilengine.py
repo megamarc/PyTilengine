@@ -1657,6 +1657,8 @@ _tln.TLN_DisableLayerMosaic.argtypes = [c_int]
 _tln.TLN_DisableLayerMosaic.restype = c_bool
 _tln.TLN_DisableLayer.argtypes = [c_int]
 _tln.TLN_DisableLayer.restype = c_bool
+_tln.TLN_EnableLayer.argtypes = [c_int]
+_tln.TLN_EnableLayer.restype = c_bool
 _tln.TLN_GetLayerPalette.argtypes = [c_int]
 _tln.TLN_GetLayerPalette.restype = c_void_p
 _tln.TLN_GetLayerTile.argtypes = [c_int, c_int, c_int, POINTER(TileInfo)]
@@ -1665,13 +1667,8 @@ _tln.TLN_GetLayerWidth.argtypes = [c_int]
 _tln.TLN_GetLayerWidth.restype = c_int
 _tln.TLN_GetLayerHeight.argtypes = [c_int]
 _tln.TLN_GetLayerHeight.restype = c_int
-
 _tln.TLN_SetLayerPriority.argtypes = [c_int, c_bool]
 _tln.TLN_SetLayerPriority.restype = c_bool
-_tln.TLN_SetLayerParent.argtypes = [c_int, c_int]
-_tln.TLN_SetLayerParent.restype = c_bool
-_tln.TLN_DisableLayerParent.argtypes = [c_int]
-_tln.TLN_DisableLayerParent.restype = c_bool
 
 class Layer(object):
 	"""
@@ -1861,7 +1858,14 @@ class Layer(object):
 		"""
 		ok = _tln.TLN_DisableLayer(self)
 		_raise_exception(ok)
-
+		
+	def enable(self):
+		"""
+		Re-enables previously disabled layer
+		"""
+		ok = _tln.TLN_EnableLayer(self)
+		_raise_exception(ok)
+		
 	def get_palette(self):
 		"""
 		Gets the layer active palette
@@ -1914,6 +1918,10 @@ _tln.TLN_SetSpriteSet.argtypes = [c_int, c_void_p]
 _tln.TLN_SetSpriteSet.restype = c_bool
 _tln.TLN_SetSpriteFlags.argtypes = [c_int, c_ushort]
 _tln.TLN_SetSpriteFlags.restype = c_bool
+_tln.TLN_EnableSpriteFlag.argtypes = [c_int, c_uint, c_bool]
+_tln.TLN_EnableSpriteFlag.restype = c_bool
+_tln.TLN_SetSpritePivot.argtypes = [c_int, c_float, c_float]
+_tln.TLN_SetSpritePivot.restype = c_bool
 _tln.TLN_SetSpritePosition.argtypes = [c_int, c_int, c_int]
 _tln.TLN_SetSpritePosition.restype = c_bool
 _tln.TLN_SetSpritePicture.argtypes = [c_int, c_int]
@@ -1992,6 +2000,26 @@ class Sprite(object):
 		:param flags: Combination of defined :class:`Flag` values
 		"""
 		ok = _tln.TLN_SetSpriteFlags(self, flags)
+		_raise_exception(ok)
+		
+	def enable_flag(self, flag, value=True):
+		"""
+		Enables (or disables) specified flag for a sprite
+
+		:param flag: Combination of defined :class:`Flag` values
+		:param value: True to enable (default) or False to disable
+		"""
+		ok = _tln.TLN_EnableSpriteFlag(self, flag, value)
+		_raise_exception(ok)
+
+	def set_pivot(self, u, v):
+		"""
+		Sets sprite pivot point for placement and scaling source. By default is at (0,0) = top left corner. Uses normalized coordinates in [ 0.0 - 1.0] range.
+
+		:param u: Horizontal position (0.0 = full left, 1.0 = full right)
+		:param v: Vertical position (0.0 = top, 1.0 = bottom)
+		"""
+		ok = _tln.TLN_SetSpritePivot(self, x, y)
 		_raise_exception(ok)
 
 	def set_position(self, x, y):
