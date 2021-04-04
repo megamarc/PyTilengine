@@ -58,6 +58,7 @@ class Flags:
 	FLIPY = (1 << 14)  # vertical flip
 	ROTATE = (1 << 13)	# row/column flip (unsupported, Tiled compatibility)
 	PRIORITY = (1 << 12)  # tile goes in front of sprite layer
+	MASKED = (1 << 11) # sprite won't be drawn inside masked region
 
 
 class Error:
@@ -362,6 +363,17 @@ def _raise_exception(result=False):
 		error_string = _tln.TLN_GetErrorString(error)
 		raise TilengineException(error_string.decode())
 
+# World management
+_tln.TLN_LoadWorld.argtypes = [c_char_p, c_int]
+_tln.TLN_LoadWorld.restype = c_bool
+_tln.TLN_SetWorldPosition.argtypes = [c_int, c_int]
+_tln.TLN_SetWorldPosition.restype = None
+_tln.TLN_SetLayerParallaxFactor.argtypes = [c_int, c_float, c_float]
+_tln.TLN_SetLayerParallaxFactor.restype = c_bool
+_tln.TLN_SetSpriteWorldPosition.argtypes = [c_int, c_int, c_int]
+_tln.TLN_SetSpriteWorldPosition.restype = c_bool
+_tln.TLN_ReleaseWorld.argtypes = None
+_tln.TLN_ReleaseWorld.restype = None
 
 # basic management ------------------------------------------------------------
 _tln.TLN_Init.argtypes = [c_int, c_int, c_int, c_int, c_int]
@@ -621,6 +633,32 @@ class Engine(object):
 		"""
 		ok = _tln.TLN_SetSpritesMaskRegion(top, bottom)
 		_raise_exception(ok)
+
+	def load_world(self, filename, first_layer=0):
+		"""
+		Loads and assigns complete TMX file
+
+		:param filename: main .tmx file to load
+		:first_layer: optional layer index to start to assign, by default 0
+		"""
+		ok =_tln.TLN_LoadWorld(filename, first_layer)
+		_raise_exception(ok)
+
+	def set_world_position(self, x, y):
+		"""
+		Sets global world position, moving all layers in sync according to their parallax factor
+		
+		:param x: horizontal position in world space
+		:param y: vertical position in world space
+		"""
+		ok = _tln.TLN_SetWorldPosition(x, y)
+		_raise_exception(ok)
+
+	def release_world(self):
+		"""
+		Releases world resources loaded with Engine.load_world
+		"""
+		_tln.TLN_ReleaseWorld()
 
 
 # window management -----------------------------------------------------------
@@ -1898,16 +1936,14 @@ class Layer(object):
 		ok = _tln.TLN_SetLayerPriority(self, enable)
 		_raise_exception(ok)
 
-	def set_parent(self, parent):
+	def set_parallax_factor(self, x, y):
 		"""
-		Sets parent layer to scroll in sync
-
-		:param parent: Layer object to set as parent for this layer, or None to disable parent
+		Sets layer parallax factor to use in conjunction with Engine.set_world_position()
+		
+		:param x: Horizontal parallax factor
+		:param y: Vertical parallax factor
 		"""
-		if parent is not None:
-			ok = _tln.TLN_SetLayerParent(self, parent)
-		else:
-			ok = _tln.TLN_DisableLayerParent(self)
+		ok = _tln.TLN_SetLayerParallaxFactor(self, x, y)
 		_raise_exception(ok)
 
 
@@ -2019,7 +2055,7 @@ class Sprite(object):
 		:param u: Horizontal position (0.0 = full left, 1.0 = full right)
 		:param v: Vertical position (0.0 = top, 1.0 = bottom)
 		"""
-		ok = _tln.TLN_SetSpritePivot(self, x, y)
+		ok = _tln.TLN_SetSpritePivot(self, u, v)
 		_raise_exception(ok)
 
 	def set_position(self, x, y):
@@ -2031,6 +2067,16 @@ class Sprite(object):
 		"""
 		ok = _tln.TLN_SetSpritePosition(self, x, y)
 		_raise_exception(ok)
+
+	def set_world_position(self, x, y):
+		"""
+		Sets the sprite position in world space coordinates
+		
+		:param x: Horizontal world position of pivot (0 = left margin)
+		:param y: Vertical world position of pivot (0 = top margin)
+		"""
+		ok = _tln.TLN_SetSpriteWorldPosition(self, x, y)
+		_raise_exception(ok)		
 
 	def set_picture(self, picture):
 		"""
@@ -2186,7 +2232,7 @@ class Sprite(object):
 		Enables or disables masking for this sprite, if enabled it won't be drawn inside the region set up with Engine.set_sprite_mask_region()
 		"""
 		ok = _tln.TLN_EnableSpriteMasking(self, enable)
-		_raise_exception(ok)	
+		_raise_exception(ok)
 
 
 # color cycle animation engine ------------------------------------------------------------
