@@ -1,11 +1,11 @@
 """
 Python wrapper for Tilengine retro graphics engine
-Updated to library version 1.21.0 with log_level and input scheme from 2.1.2+
+Updated to library version 2.9.1
 http://www.tilengine.org
 """
 
 """
-Copyright (c) 2018 Marc Palacios Domenech
+Copyright (c) 2017-2021 Marc Palacios Domenech
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
