@@ -609,13 +609,13 @@ class Engine(object):
 		index = _tln.TLN_GetAvailableAnimation()
 		return index
 
-	def open_resource_pack(self, filename, key):
+	def open_resource_pack(self, filename, key=''):
 		"""
 		Opens the resource package with optional aes-128 key and binds it
 		:param filename: file with the resource package (.dat extension)
 		:param key: optional null-terminated ASCII string with aes decryption key
 		"""
-		ok = _tln.TLN_OpenResourcePack(filename, key=None)
+		ok = _tln.TLN_OpenResourcePack(_encode_string(str(filename)), _encode_string(str(key)))
 		_raise_exception(ok)
 
 	def close_resource_pack(self):
