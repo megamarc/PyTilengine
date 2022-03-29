@@ -421,7 +421,7 @@ class Engine(object):
 		self.cb_blend_func = None
 		self.library = _tln
 
-		version = [1,21,0]	# expected library version
+		version = [2,9,5]	# expected library version
 		req_version = (version[0] << 16) + (version[1] << 8) + version[2]
 		if self.version < req_version:
 			maj_version = self.version >> 16
@@ -1983,6 +1983,10 @@ _tln.TLN_GetSpritePalette.argtypes = [c_int]
 _tln.TLN_GetSpritePalette.restype = c_void_p
 _tln.TLN_SetSpriteAnimation.argtypes = [c_int, c_void_p, c_int]
 _tln.TLN_SetSpriteAnimation.restype = c_bool
+_tln.TLN_PauseSpriteAnimation.argtypes = [c_int]
+_tln.TLN_PauseSpriteAnimation.restype = c_bool
+_tln.TLN_ResumeSpriteAnimation.argtypes = [c_int]
+_tln.TLN_ResumeSpriteAnimation.restype = c_bool
 _tln.TLN_GetAnimationState.argtypes = [c_int]
 _tln.TLN_GetAnimationState.restype = c_bool
 _tln.TLN_DisableSpriteAnimation.argtypes = [c_int]
@@ -2194,6 +2198,20 @@ class Sprite(object):
 		:return: True if still running, False if it has finished
 		"""
 		return _tln.TLN_GetAnimationState(self)
+
+	def pause_animation(self):
+		"""
+		Paused sprite animation
+		"""
+		ok = _tln.TLN_PauseSpriteAnimation(self)
+		_raise_exception(ok)
+	
+	def resume_animation(self):
+		"""
+		Resumes paused animation
+		"""
+		ok = _tln.TLN_ResumeSpriteAnimation(self)
+		_raise_exception(ok)
 
 	def disable_animation(self):
 		"""
