@@ -1,11 +1,11 @@
 """
 Python wrapper for Tilengine retro graphics engine
-Updated to library version 2.9.1
+Updated to library version 2.11.0
 http://www.tilengine.org
 """
 
 """
-Copyright (c) 2017-2021 Marc Palacios Domenech
+Copyright (c) 2017-2022 Marc Palacios Domenech
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -32,6 +32,7 @@ SOFTWARE.
 # pylint: disable=R0201
 from sys import platform as _platform
 from ctypes import *
+from os import path
 
 
 # constants --------------------------------------------------------------------
@@ -59,6 +60,7 @@ class Flags:
 	ROTATE = (1 << 13)	# row/column flip (unsupported, Tiled compatibility)
 	PRIORITY = (1 << 12)  # tile goes in front of sprite layer
 	MASKED = (1 << 11) # sprite won't be drawn inside masked region
+	TILESET = (7 << 8) # tileset index
 
 
 class Error:
@@ -112,11 +114,19 @@ class Input:
 
 PLAYER1, PLAYER2, PLAYER3, PLAYER4 = range(4)
 
+
 class Overlay:
 	"""
-	Available CRT overlay patterns
+	Unised, kept for backwards compatibility with pre-2.10 release
 	"""
 	NONE, SHADOWMASK, APERTURE, SCANLINES, CUSTOM = range(5)
+
+
+class CRT:
+	"""
+	Types of crt effect for release 2.10
+	"""
+	SLOT, APERTURE, SHADOW = range(3)
 
 
 class TilengineException(Exception):
@@ -324,13 +334,22 @@ class Color(object):
 _tln = None			# handle to shared native library
 _window = None		# singleton window
 
-# load native library
+# select library depending on OS
+_library = ""
 if _platform == "linux" or _platform == "linux2":
-	_tln = cdll.LoadLibrary("libTilengine.so")
+	_library = "libTilengine.so"
 elif _platform == "win32":
-	_tln = cdll.LoadLibrary("Tilengine.dll")
+	_library = "Tilengine.dll"
 elif _platform == "darwin":
-	_tln = cdll.LoadLibrary("Tilengine.dylib")
+	_library = "Tilengine.dylib"
+else:
+	raise OSError("Unsupported platform: must be Windows, Linux or Mac OS")
+
+# load native library. Try local path, if not, system path
+if path.isfile(_library):
+	_tln = cdll.LoadLibrary(f"./{_library}")
+else:
+	_tln = cdll.LoadLibrary(_library)
 
 # callback types for user functions
 _video_callback_function = CFUNCTYPE(None, c_int)
@@ -421,7 +440,7 @@ class Engine(object):
 		self.cb_blend_func = None
 		self.library = _tln
 
-		version = [2,9,5]	# expected library version
+		version = [2,11,0]	# expected library version
 		req_version = (version[0] << 16) + (version[1] << 8) + version[2]
 		if self.version < req_version:
 			maj_version = self.version >> 16
@@ -676,6 +695,7 @@ _tln.TLN_DefineInputKey.argtypes = [c_int, c_int, c_uint]
 _tln.TLN_DefineInputButton.argtypes = [c_int, c_int, c_ubyte]
 _tln.TLN_DrawFrame.argtypes = [c_int]
 _tln.TLN_EnableCRTEffect.argtypes = [c_int, c_ubyte, c_ubyte, c_ubyte, c_ubyte, c_ubyte, c_ubyte, c_bool, c_ubyte]
+_tln.TLN_ConfigCRTEffect.argtypes = [c_int, c_bool]
 _tln.TLN_GetTicks.restype = c_int
 _tln.TLN_Delay.argtypes = [c_int]
 _tln.TLN_GetWindowWidth.restype = c_int
@@ -823,19 +843,18 @@ class Window(object):
 		"""
 		_tln.TLN_WaitRedraw()
 
+	def config_crt_effect(self, crt_type, rf_blur):
+		"""
+		Enables CRT simulation post-processing effect to give true retro appeareance
+
+		:param crt_type: One possible value of \ref CRT class
+		:param rf_blur: Optional RF (horizontal) blur, increases CPU usage
+		"""
+		_tln.TLN_ConfigCRTEffect(crt_type, rf_blur)
+	
 	def enable_crt_effect(self, overlay_id, overlay_blend, threshold, v0, v1, v2, v3, blur, glow_factor):
 		"""
-		Enables CRT simulation post-processing effect to give true retro appearance. Enabled by default.
-
-		:param overlay_id: One of the defined :class:`Overlay` values. Choosing `Overlay.CUSTOM` selects the image passed when calling :meth:`Window.create`
-		:param overlay_blend: blend factor for overlay image. 0 is full transparent (no effect), 255 is full blending
-		:param threshold: Middle point of the brightness mapping function
-		:param v0: output brightness when input brightness = 0
-		:param v1: output brightness when input brightness = threshold
-		:param v2: output brightness when input brightness = threshold (to create discontinuity with v1)
-		:param v3: output brightness when input brightness = 255
-		:param blur: True to add gaussian blur to brightness overlay, softens image
-		:param glow_factor: blend addition factor for brightness overlay. 0 is not addition, 255 is full addition
+		Obsolete, kept for backward compatibility with pre- 2.10 release. Use config_crt_effect() instead.
 		"""
 		_tln.TLN_EnableCRTEffect(overlay_id, overlay_blend, threshold, v0, v1, v2, v3, blur, glow_factor)
 
@@ -1087,8 +1106,10 @@ _tln.TLN_GetTilemapRows.argtypes = [c_void_p]
 _tln.TLN_GetTilemapRows.restype = c_int
 _tln.TLN_GetTilemapCols.argtypes = [c_void_p]
 _tln.TLN_GetTilemapCols.restype = c_int
-_tln.TLN_GetTilemapTileset.argtypes = [c_void_p]
-_tln.TLN_GetTilemapTileset.restype = c_void_p
+_tln.TLN_SetTilemapTileset2.argtypes = [c_void_p, c_void_p, c_int]
+_tln.TLN_SetTilemapTileset2.restype = c_bool
+_tln.TLN_GetTilemapTileset2.argtypes = [c_void_p, c_int]
+_tln.TLN_GetTilemapTileset2.restype = c_void_p
 _tln.TLN_GetTilemapTile.argtypes = [c_void_p, c_int, c_int, POINTER(Tile)]
 _tln.TLN_GetTilemapTile.restype = c_bool
 _tln.TLN_SetTilemapTile.argtypes = [c_void_p, c_int, c_int, POINTER(Tile)]
@@ -1113,7 +1134,7 @@ class Tilemap(object):
 		self.library = _tln
 		self.rows = _tln.TLN_GetTilemapRows(handle)
 		self.cols = _tln.TLN_GetTilemapCols(handle)
-		tileset_handle = _tln.TLN_GetTilemapTileset(handle)
+		tileset_handle = _tln.TLN_GetTilemapTileset2(handle, 0)
 		if tileset_handle is not None:
 			self.tileset = Tileset(tileset_handle, False)
 		else:
@@ -1164,6 +1185,22 @@ class Tilemap(object):
 			return Tilemap(handle)
 		else:
 			_raise_exception()
+
+	def get_tileset(self, index = 0):
+		"""
+		Returns the nth tileset associated tileset to the specified tilemap
+		:param index: Tileset index (0 - 7), 0 by default
+		"""
+		return Tileset(_tln.TLN_GetTilemapTileset2(self, index), False)
+
+	def set_tileset(self, tileset, index = 0):
+		"""
+		Sets the nth tileset associated tileset to the specified tilemap
+		:param tileset: Reference to tileset object to associate
+		:param index: Tileset index (0 - 7), 0 by default
+		"""
+		ok = _tln.TLN_SetTilemapTileset2(self, tileset, index)
+		_raise_exception(ok)
 
 	def get_tile(self, row, col, tile_info):
 		"""
