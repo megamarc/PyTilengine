@@ -32,25 +32,25 @@ def setup_layer(layer, name):
 def raster_effect(line):
 	pos = -1
 
-	if line is 0:
+	if line == 0:
 		pos = pos_background[0]
-	elif line is 32:
+	elif line == 32:
 		pos = pos_background[1]
-	elif line is 48:
+	elif line == 48:
 		pos = pos_background[2]
-	elif line is 64:
+	elif line == 64:
 		pos = pos_background[3]
-	elif line is 112:
+	elif line == 112:
 		pos = pos_background[4]
 	elif line >= 152:
 		pos = lerp(line, 152, 224, pos_background[4], pos_background[5])
 
-	if pos is not -1:
+	if pos != -1:
 		background.set_position(pos, 0)
 
-	if line is 0:
+	if line == 0:
 		engine.set_background_color(background_colors[0])
-	elif line is 144:
+	elif line == 144:
 		engine.set_background_color(background_colors[1])
 
 
