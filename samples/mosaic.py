@@ -1,3 +1,4 @@
+#!/bin/python
 """
 Tilengine python example:
 	Mosaic effect demo

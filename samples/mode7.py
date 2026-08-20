@@ -1,3 +1,4 @@
+#!/bin/python
 """
 Tilengine python example:
     Raster based affine transform to simulate perspective, SNES Mode-7 style

@@ -1,3 +1,4 @@
+#!/bin/python
 """ Donkey Kong Country background recreation with Tilengine """
 
 import sys

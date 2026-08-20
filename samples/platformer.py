@@ -1,3 +1,4 @@
+#!/bin/python
 """
 Tilengine python example:
 	Raster effect to simulate depth with scroll strips and linescroll

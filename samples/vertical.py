@@ -1,3 +1,4 @@
+#!/bin/python
 """
 Tilengine python example:
 	Use raster effects and clipping to fake progressive perspective scaling

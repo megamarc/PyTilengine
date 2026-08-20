@@ -1,3 +1,4 @@
+#!/bin/python
 """
 Tilengine python example:
     Column offset feature demo
@@ -31,7 +32,7 @@ base_layer = engine.layers[2]
 engine.set_load_path("assets/sonic")
 setup_layer(foreground, "Sonic_md_fg1.tmx")
 setup_layer(background, "Sonic_md_bg1.tmx")
-setup_layer(base_layer, "Base.tmx")
+#setup_layer(base_layer, "Base.tmx")
 
 # create and assign column offset array
 num_columns = int(WIDTH / 8 + 2)
