@@ -6,7 +6,7 @@ Tilengine python example:
 
 import sys
 sys.path.append("../src")
-from tilengine import Engine, Window, Tilemap
+from tilengine import Engine, Window, WindowFlags, Tilemap
 
 # helper constants
 WIDTH = 400
@@ -42,7 +42,7 @@ setup_layer(background, "Sonic_md_bg1.tmx")
 
 # main window loop
 target_layer = foreground
-window = Window.create()
+window = Window.create(flags=WindowFlags.FULLSCREEN)
 while window.process():
 	frame += 1
 	pixel_size += pixel_delta

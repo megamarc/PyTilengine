@@ -6,7 +6,7 @@ Tilengine python example:
 
 import sys
 sys.path.append("../src")
-from tilengine import Engine, Window, Tilemap
+from tilengine import Engine, Window, WindowFlags, Tilemap
 
 from ctypes import c_int
 from math import sin, radians
@@ -41,7 +41,7 @@ foreground.set_column_offset(columns)
 
 # game loop
 x_world = 0
-window = Window.create()
+window = Window.create(flags=WindowFlags.FULLSCREEN)
 while window.process():
 	for n in range(num_columns):
 		columns[n] = int(sin(radians(x_world * 4 + n * 7)) * ((abs(sin(radians(x_world / 4)) * 12)) + 4))

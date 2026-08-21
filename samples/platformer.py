@@ -6,7 +6,7 @@ Tilengine python example:
 
 import sys
 sys.path.append("../src")
-from tilengine import Engine, Window, Tilemap, Input, Color, SequencePack
+from tilengine import Engine, Window, WindowFlags, Tilemap, Input, Color, SequencePack
 
 # module variables
 frame = 0
@@ -75,7 +75,7 @@ engine.animations[animation].set_palette_animation(palette, sequence_pack.sequen
 engine.set_raster_callback(raster_effect)
 
 # main loop
-window = Window.create()
+window = Window.create(flags=WindowFlags.FULLSCREEN)
 while window.process():
 
 	# process user input

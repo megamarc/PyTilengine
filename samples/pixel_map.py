@@ -6,7 +6,7 @@ Tilengine python example:
 
 import sys
 sys.path.append("../src")
-from tilengine import Engine, Window, Tilemap, PixelMap
+from tilengine import Engine, Window, WindowFlags, Tilemap, PixelMap
 from math import sin, radians
 
 # helper constants
@@ -37,6 +37,6 @@ for y in range(HEIGHT):
 foreground.set_pixel_mapping(pixel_map)
 
 # main loop
-window = Window.create()
+window = Window.create(flags=WindowFlags.FULLSCREEN)
 while window.process():
 	foreground.set_position(40, window.num_frame)

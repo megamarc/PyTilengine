@@ -6,7 +6,7 @@ Tilengine python example:
 
 import sys
 sys.path.append("../src")
-from tilengine import Engine, Window, Tilemap, Input, Color
+from tilengine import Engine, Window, WindowFlags, Tilemap, Input, Color
 
 from math import sin, cos, radians
 
@@ -62,7 +62,7 @@ map_track = Tilemap.fromfile("track1.tmx")
 engine.set_raster_callback(raster_effect)
 
 # main loop
-window = Window.create()
+window = Window.create(flags=WindowFlags.FULLSCREEN)
 while window.process():
 	foreground.setup(map_horizon)
 	background.setup(map_horizon)

@@ -3,7 +3,7 @@
 
 import sys
 sys.path.append("../src")
-from tilengine import Engine, Window, Tilemap, Input, Color
+from tilengine import Engine, Window, WindowFlags, Tilemap, Input, Color
 
 # helper constants
 WIDTH = 400
@@ -114,7 +114,7 @@ max_x = bg1.width - WIDTH
 max_y = 240
 
 # create window and main loop
-window = Window.create()
+window = Window.create(flags=WindowFlags.FULLSCREEN)
 while window.process():
 
 	# user input: movement
