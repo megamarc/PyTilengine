@@ -6,7 +6,7 @@ Tilengine python example:
 
 import sys
 sys.path.append("../src")
-from tilengine import Engine, Window, WindowFlags, Tilemap, Input, Color, Blend
+from tilengine import Engine, Window, WindowFlags, Tilemap, Input, Color, Blend, CRT
 from math import tan, radians
 
 # helper constants
@@ -65,5 +65,6 @@ row_offsets = [int(tan(radians(lerp(n, 0, LAND_HEIGHT, 105.0, 180.0))) * 240) fo
 # main loop
 world_y = terrain.height - HEIGHT
 window = Window.create(flags=WindowFlags.FULLSCREEN)
+window.config_crt_effect(CRT.APERTURE, True, False)
 while window.process():
 	world_y -= 1

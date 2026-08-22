@@ -127,7 +127,7 @@ class CRT:
 	"""
 	Types of crt effect for release 2.10
 	"""
-	SLOT, APERTURE, SHADOW = range(3)
+	NONE, SLOT, APERTURE, SHADOW, HORIZONTAL = range(5)
 
 
 class TilengineException(Exception):
@@ -696,8 +696,7 @@ _tln.TLN_AssignInputJoystick.argtypes = [c_int, c_int]
 _tln.TLN_DefineInputKey.argtypes = [c_int, c_int, c_uint]
 _tln.TLN_DefineInputButton.argtypes = [c_int, c_int, c_ubyte]
 _tln.TLN_DrawFrame.argtypes = [c_int]
-_tln.TLN_EnableCRTEffect.argtypes = [c_int, c_ubyte, c_ubyte, c_ubyte, c_ubyte, c_ubyte, c_ubyte, c_bool, c_ubyte]
-_tln.TLN_ConfigCRTEffect.argtypes = [c_int, c_bool]
+_tln.TLN_ConfigCRTEffect.argtypes = [c_int, c_bool, c_bool]
 _tln.TLN_GetTicks.restype = c_int
 _tln.TLN_Delay.argtypes = [c_int]
 _tln.TLN_GetWindowWidth.restype = c_int
@@ -848,24 +847,19 @@ class Window(object):
 		"""
 		_tln.TLN_WaitRedraw()
 
-	def config_crt_effect(self, crt_type: int, rf_blur: bool):
+	def config_crt_effect(self, crt_type: int, rf_blur: bool, scanlines: bool):
 		"""
 		Enables CRT simulation post-processing effect to give true retro appeareance
 
 		:param crt_type: One possible value of \ref CRT class
-		:param rf_blur: Optional RF (horizontal) blur, increases CPU usage
+		:param rf_blur: enable RF (horizontal) blur, increases CPU usage
+		:param scanlines: enable scanlines
 		"""
-		_tln.TLN_ConfigCRTEffect(crt_type, rf_blur)
+		_tln.TLN_ConfigCRTEffect(crt_type, rf_blur, scanlines)
 	
-	def enable_crt_effect(self, overlay_id, overlay_blend, threshold, v0, v1, v2, v3, blur, glow_factor):
-		"""
-		Obsolete, kept for backward compatibility with pre- 2.10 release. Use config_crt_effect() instead.
-		"""
-		_tln.TLN_EnableCRTEffect(overlay_id, overlay_blend, threshold, v0, v1, v2, v3, blur, glow_factor)
-
 	def disable_crt_effect(self):
 		"""
-		Disables the CRT post-processing effect enabled with :meth:`Window.enable_crt_effect`
+		Disables the CRT post-processing effect enabled with :meth:`Window.config_crt_effect`
 		"""
 		_tln.TLN_DisableCRTEffect()
 
